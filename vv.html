@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบลงคะแนนเลือกตั้ง (รอบใหม่)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Kanit', sans-serif; }
+        .candidate-card { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .candidate-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+        button:disabled { cursor: not-allowed; opacity: 0.6; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8">
+
+        <!-- ===== Voter View ===== -->
+        <div id="voter-view">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-green-600">โหวตพนักงานดีเด่นด้านความปลอดภัย</h1>
+                <p class="text-lg mt-2 text-gray-600">โปรดเลือกพนักงานที่ท่านเห็นว่าเหมาะสม</p>
+                <div id="total-votes-display" class="mt-4 text-xl font-semibold bg-white p-3 rounded-lg shadow-md inline-block">
+                    กำลังโหลดข้อมูล...
+                </div>
+            </header>
+
+            <div id="candidates-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Loading Skeleton -->
+                <div class="loading-placeholder bg-white p-5 rounded-lg shadow-lg text-center animate-pulse col-span-full">
+                    <div class="h-40 bg-gray-200 rounded-md w-full mb-4"></div>
+                    <div class="h-6 bg-gray-200 rounded w-3/4 mx-auto mb-2"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mx-auto mb-4"></div>
+                    <div class="h-12 bg-gray-300 rounded w-full"></div>
+                </div>
+            </div>
+             <p id="voted-message" class="hidden text-center text-2xl font-bold text-green-600 bg-green-100 p-6 rounded-lg shadow-lg mt-8">
+                ขอบคุณสำหรับความร่วมมือ คุณได้ลงคะแนนเรียบร้อยแล้ว
+             </p>
+        </div>
+
+        <!-- ===== Admin View ===== -->
+        <div id="admin-view" class="hidden">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-purple-600">สรุปผลคะแนน (สำหรับผู้ดูแล)</h1>
+                 <div id="admin-total-votes-display" class="mt-4 text-xl font-semibold bg-white p-3 rounded-lg shadow-md inline-block">
+                    กำลังโหลดข้อมูล...
+                </div>
+            </header>
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div class="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4">กราฟแสดงผลคะแนน</h2>
+                    <canvas id="results-chart"></canvas>
+                </div>
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4">ตารางสรุปผล</h2>
+                    <div id="results-table-container" class="overflow-x-auto">
+                         <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="text-center mt-12 text-gray-500">
+            <p>New Election Voting System</p>
+            <a href="#" onclick="navigateToHash(event)" class="text-blue-500 hover:underline">สลับไปหน้า Admin/Voter</a>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full text-center">
+            <h2 class="text-2xl font-bold mb-4">ยืนยันการลงคะแนน</h2>
+            <p id="modal-text" class="mb-6 text-lg">คุณต้องการลงคะแนนให้ ... ใช่หรือไม่?</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirm-vote-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700">ยืนยัน</button>
+                <button onclick="closeModal('confirmation-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+    <div id="admin-login-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full">
+            <h2 class="text-2xl font-bold mb-4 text-center">สำหรับผู้ดูแลระบบ</h2>
+            <input type="password" id="admin-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm" placeholder="กรอกรหัสผ่าน">
+            <p id="login-error-msg" class="text-red-500 text-sm mt-2 hidden">รหัสผ่านไม่ถูกต้อง</p>
+            <button onclick="handleAdminLogin()" class="w-full mt-4 bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+    <div id="success-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full text-center">
+             <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                <svg class="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">ลงคะแนนสำเร็จ</h2>
+            <p class="mb-6 text-lg">ขอบคุณสำหรับความร่วมมือของคุณ</p>
+            <button onclick="closeModal('success-modal')" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">ปิด</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // !!! ================================================================= !!!
+        // !!!  สำคัญ: นำ URL ของเว็บแอป (ใหม่) ที่ได้จาก Google Apps Script    !!!
+        // !!!  มาวางแทนที่ข้อความข้างล่างนี้                                   !!!
+        // !!! ================================================================= !!!
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec';
+        
+        const ADMIN_PASSWORD = '5867050201'; // เปลี่ยนรหัสผ่านแอดมินได้ตามต้องการ
+        const ADMIN_REFRESH_INTERVAL = 60000; 
+        
+        // !!! ================================================================= !!!
+        // !!!  จุดสำคัญ: เปลี่ยน Key เพื่อให้ผู้ใช้เดิมโหวตใหม่ได้             !!!
+        // !!!  นี่คือ "กุญแจ" ใหม่สำหรับแอปนี้โดยเฉพาะ                        !!!
+        // !!! ================================================================= !!!
+        const VOTE_STORAGE_KEY = 'hasVoted_election_round_2025_v3'; 
+
+        // --- STATE & DOM ELEMENTS ---
+        let resultsChart = null;
+        let adminInterval = null;
+        const voterView = document.getElementById('voter-view');
+        const adminView = document.getElementById('admin-view');
+        const candidatesGrid = document.getElementById('candidates-grid');
+        const totalVotesDisplay = document.getElementById('total-votes-display');
+        const adminTotalVotesDisplay = document.getElementById('admin-total-votes-display');
+        const votedMessage = document.getElementById('voted-message');
+        const confirmVoteBtn = document.getElementById('confirm-vote-btn');
+        const adminPasswordField = document.getElementById('admin-password');
+
+        // --- FUNCTIONS ---
+        function openModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
+
+        async function fetchData(action) {
+            if (SCRIPT_URL.includes('ใส่ WEB APP URL')) {
+                document.body.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 h-screen flex items-center justify-center text-2xl"><div class="font-bold">**ข้อผิดพลาด**<br>กรุณาตั้งค่า SCRIPT_URL ในโค้ดก่อนใช้งาน</div></div>`;
+                return null;
+            }
+            try {
+                const response = await fetch(`${SCRIPT_URL}?action=${action}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+                return null;
+            }
+        }
+
+        async function renderCandidates() {
+            const hasVoted = localStorage.getItem(VOTE_STORAGE_KEY) === 'true';
+            const data = await fetchData('getcandidates');
+            
+            candidatesGrid.innerHTML = ''; 
+            if (!data) {
+                candidatesGrid.innerHTML = '<p class="text-center text-red-500 col-span-full">ไม่สามารถโหลดข้อมูลผู้สมัครได้</p>';
+                return;
+            }
+
+            data.forEach(candidate => {
+                const card = document.createElement('div');
+                card.className = 'candidate-card bg-white p-5 rounded-lg shadow-lg text-center flex flex-col h-full';
+                card.innerHTML = `
+                    <img src="${candidate.imageUrl}" alt="รูปของ ${candidate.name}" class="w-full h-64 object-contain bg-gray-200 rounded-md mb-4" onerror="this.onerror=null;this.src='https://placehold.co/400x400/e2e8f0/64748b?text=ไม่มีรูป';">
+                    <div class="flex-grow">
+                        <h3 class="text-xl font-bold mb-1">${candidate.name}</h3>
+                        <p class="text-2xl font-semibold text-green-700 mb-4">${candidate.number}</p>
+                    </div>
+                    <button class="vote-btn w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 mt-auto" data-id="${candidate.id}" data-name="${candidate.name}" ${hasVoted ? 'disabled' : ''}>
+                        ${hasVoted ? 'ลงคะแนนแล้ว' : 'ลงคะแนน'}
+                    </button>
+                `;
+                candidatesGrid.appendChild(card);
+            });
+
+            if (hasVoted) {
+                votedMessage.classList.remove('hidden');
+            } else {
+                document.querySelectorAll('.vote-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                       const { id, name } = e.currentTarget.dataset;
+                       document.getElementById('modal-text').textContent = `คุณต้องการลงคะแนนให้ "${name}" ใช่หรือไม่?`;
+                       confirmVoteBtn.dataset.id = id;
+                       openModal('confirmation-modal');
+                    });
+                });
+            }
+        }
+
+        async function updateTotalVotes() {
+             const data = await fetchData('getresults');
+             if (data && data.totalVotes !== undefined) {
+                 totalVotesDisplay.innerHTML = `มีผู้ลงคะแนนแล้ว: <span class="text-blue-700">${data.totalVotes.toLocaleString()}</span> คน`;
+             } else if (data !== null) { 
+                 totalVotesDisplay.innerHTML = `ไม่สามารถโหลดข้อมูลได้`;
+             }
+        }
+        
+        function generateChartColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(`hsla(${(i * 360 / count)}, 70%, 60%, 0.8)`);
+            }
+            return colors;
+        }
+
+        async function renderAdminDashboard() {
+            const data = await fetchData('getresults');
+            if (!data || !data.results) {
+                document.getElementById('results-table-container').innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดข้อมูลสรุปผลได้</p>';
+                return;
+            }
+            
+            if (data.totalVotes !== undefined) {
+                adminTotalVotesDisplay.innerHTML = `ผู้ลงคะแนนทั้งหมด: <span class="text-purple-700">${data.totalVotes.toLocaleString()}</span> คน`;
+            }
+
+            const sortedResults = Object.entries(data.results).sort(([,a],[,b]) => b.votes - a.votes);
+            const labels = sortedResults.map(([,item]) => `${item.name} (เบอร์ ${item.number})`);
+            const votes = sortedResults.map(([,item]) => item.votes);
+            const backgroundColors = generateChartColors(sortedResults.length);
+
+            const tableContainer = document.getElementById('results-table-container');
+            let tableHTML = `<table class="w-full text-left">
+                    <thead class="bg-gray-200"><tr><th class="p-3">อันดับ</th><th class="p-3">ชื่อ</th><th class="p-3 text-right">คะแนน</th></tr></thead><tbody>`;
+            sortedResults.forEach(([id, item], index) => {
+                tableHTML += `<tr class="border-b"><td class="p-3 font-semibold">${index + 1}</td><td class="p-3">${item.name}</td><td class="p-3 text-right font-semibold">${item.votes.toLocaleString()}</td></tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            tableContainer.innerHTML = tableHTML;
+
+            const chartCanvas = document.getElementById('results-chart').getContext('2d');
+            if(resultsChart) { resultsChart.destroy(); }
+            resultsChart = new Chart(chartCanvas, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'คะแนน', data: votes, backgroundColor: backgroundColors, borderWidth: 1 }] },
+                options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+
+        async function submitVote() {
+            const candidateId = confirmVoteBtn.dataset.id;
+            confirmVoteBtn.disabled = true;
+            confirmVoteBtn.textContent = 'กำลังส่ง...';
+
+            try {
+                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ candidateId: candidateId }) });
+                localStorage.setItem(VOTE_STORAGE_KEY, 'true');
+                votedMessage.classList.remove('hidden');
+                document.querySelectorAll('.vote-btn').forEach(b => { b.disabled = true; b.textContent = 'ลงคะแนนแล้ว'; });
+                closeModal('confirmation-modal');
+                openModal('success-modal'); 
+                await updateTotalVotes(); 
+                // บรรทัดที่ทำให้ปิดหน้าต่างอัตโนมัติถูกลบออกไปแล้ว
+            } catch (error) {
+                console.error("Submit Vote Error:", error);
+                alert("เกิดข้อผิดพลาดในการส่งคะแนน");
+            } finally {
+                confirmVoteBtn.disabled = false;
+                confirmVoteBtn.textContent = 'ยืนยัน';
+            }
+        }
+        
+        function handleAdminLogin() {
+            if (adminPasswordField.value === ADMIN_PASSWORD) {
+                sessionStorage.setItem('isAdminLoggedIn', 'true');
+                adminPasswordField.value = '';
+                document.getElementById('login-error-msg').classList.add('hidden');
+                closeModal('admin-login-modal');
+                switchView();
+            } else {
+                document.getElementById('login-error-msg').classList.remove('hidden');
+            }
+        }
+        
+        function switchView() {
+            clearInterval(adminInterval);
+            const hash = window.location.hash;
+            if (hash === '#admin') {
+                if (sessionStorage.getItem('isAdminLoggedIn') === 'true') {
+                    voterView.classList.add('hidden');
+                    adminView.classList.remove('hidden');
+                    renderAdminDashboard();
+                    adminInterval = setInterval(renderAdminDashboard, ADMIN_REFRESH_INTERVAL);
+                } else {
+                    openModal('admin-login-modal');
+                }
+            } else { 
+                adminView.classList.add('hidden');
+                voterView.classList.remove('hidden');
+                renderCandidates();
+                updateTotalVotes(); 
+            }
+        }
+        
+        function navigateToHash(event) {
+            event.preventDefault();
+            window.location.hash = window.location.hash === '#admin' ? '' : '#admin';
+        }
+
+        window.addEventListener('hashchange', switchView);
+        document.addEventListener('DOMContentLoaded', () => {
+            switchView();
+            confirmVoteBtn.addEventListener('click', submitVote);
+            adminPasswordField.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleAdminLogin(); });
+        });
+    </script>
+</body>
+</html>
