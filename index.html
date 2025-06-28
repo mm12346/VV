@@ -20,8 +20,26 @@
 
     <div class="container mx-auto p-4 sm:p-6 md:p-8">
 
-        <!-- ===== Voter View ===== -->
-        <div id="voter-view">
+        <!-- ===== User Type Selection View ===== -->
+        <div id="selection-view">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-blue-600">โปรดระบุประเภทของคุณ</h1>
+                <p class="text-lg mt-2 text-gray-600">กรุณาเลือกประเภทเพื่อดำเนินการต่อ</p>
+            </header>
+            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <div class="flex flex-col space-y-4">
+                     <button id="select-employee-btn" data-type="พนักงาน" class="selection-btn bg-sky-500 text-white font-bold py-4 px-6 rounded-lg hover:bg-sky-600 text-xl transition">
+                        พนักงาน
+                    </button>
+                    <button id="select-pc-btn" data-type="pc" class="selection-btn bg-teal-500 text-white font-bold py-4 px-6 rounded-lg hover:bg-teal-600 text-xl transition">
+                        PC
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Voter View (Initially Hidden) ===== -->
+        <div id="voter-view" class="hidden">
             <header class="text-center mb-8">
                 <h1 class="text-3xl sm:text-4xl font-bold text-green-600">โหวตพนักงานดีเด่นด้านความปลอดภัย</h1>
                 <p class="text-lg mt-2 text-gray-600">โปรดเลือกพนักงานที่ท่านเห็นว่าเหมาะสม</p>
@@ -52,15 +70,23 @@
                     กำลังโหลดข้อมูล...
                 </div>
             </header>
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div class="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
                     <h2 class="text-2xl font-semibold mb-4">กราฟแสดงผลคะแนน</h2>
                     <canvas id="results-chart"></canvas>
                 </div>
-                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-semibold mb-4">ตารางสรุปผล</h2>
-                    <div id="results-table-container" class="overflow-x-auto">
-                         <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
+                <div class="space-y-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-semibold mb-4">ตารางสรุปผล</h2>
+                        <div id="results-table-container" class="overflow-x-auto">
+                             <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-semibold mb-4">สรุปตามประเภทผู้ลงคะแนน</h2>
+                        <div id="user-type-summary" class="space-y-3 text-lg">
+                            <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -104,24 +130,18 @@
 
     <script>
         // --- CONFIGURATION ---
-        // !!! ================================================================= !!!
-        // !!!  สำคัญ: นำ URL ของเว็บแอป (ใหม่) ที่ได้จาก Google Apps Script    !!!
-        // !!!  มาวางแทนที่ข้อความข้างล่างนี้                                   !!!
-        // !!! ================================================================= !!!
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec';
-        
-        const ADMIN_PASSWORD = '5867050201'; // เปลี่ยนรหัสผ่านแอดมินได้ตามต้องการ
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec'; // <-- อย่าลืมใส่ URL ที่ได้จากการ Deploy ใหม่
+        const ADMIN_PASSWORD = '5867050201';
         const ADMIN_REFRESH_INTERVAL = 60000; 
         
-        // !!! ================================================================= !!!
-        // !!!  จุดสำคัญ: เปลี่ยน Key เพื่อให้ผู้ใช้เดิมโหวตใหม่ได้             !!!
-        // !!!  นี่คือ "กุญแจ" ใหม่สำหรับแอปนี้โดยเฉพาะ                        !!!
-        // !!! ================================================================= !!!
+        // --- STORAGE KEYS ---
         const VOTE_STORAGE_KEY = 'hasVoted_election_round_2025_v3'; 
+        const USER_TYPE_KEY = 'userType_election_round_2025_v3'; 
 
         // --- STATE & DOM ELEMENTS ---
         let resultsChart = null;
         let adminInterval = null;
+        const selectionView = document.getElementById('selection-view');
         const voterView = document.getElementById('voter-view');
         const adminView = document.getElementById('admin-view');
         const candidatesGrid = document.getElementById('candidates-grid');
@@ -210,29 +230,54 @@
 
         async function renderAdminDashboard() {
             const data = await fetchData('getresults');
-            if (!data || !data.results) {
+            if (!data) {
                 document.getElementById('results-table-container').innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดข้อมูลสรุปผลได้</p>';
+                document.getElementById('user-type-summary').innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดข้อมูลสรุปผลได้</p>';
                 return;
             }
             
+            // --- Total Votes Display ---
             if (data.totalVotes !== undefined) {
                 adminTotalVotesDisplay.innerHTML = `ผู้ลงคะแนนทั้งหมด: <span class="text-purple-700">${data.totalVotes.toLocaleString()}</span> คน`;
             }
 
-            const sortedResults = Object.entries(data.results).sort(([,a],[,b]) => b.votes - a.votes);
+            // --- Results Table ---
+            const sortedResults = data.results ? Object.entries(data.results).sort(([,a],[,b]) => b.votes - a.votes) : [];
+            const tableContainer = document.getElementById('results-table-container');
+            if (sortedResults.length > 0) {
+                let tableHTML = `<table class="w-full text-left">
+                        <thead class="bg-gray-200"><tr><th class="p-3">อันดับ</th><th class="p-3">ชื่อ</th><th class="p-3 text-right">คะแนน</th></tr></thead><tbody>`;
+                sortedResults.forEach(([id, item], index) => {
+                    tableHTML += `<tr class="border-b"><td class="p-3 font-semibold">${index + 1}</td><td class="p-3">${item.name}</td><td class="p-3 text-right font-semibold">${item.votes.toLocaleString()}</td></tr>`;
+                });
+                tableHTML += '</tbody></table>';
+                tableContainer.innerHTML = tableHTML;
+            } else {
+                tableContainer.innerHTML = '<p class="text-center text-gray-500">ยังไม่มีผู้ลงคะแนน</p>';
+            }
+
+            // --- User Type Summary Display ---
+            const summaryContainer = document.getElementById('user-type-summary');
+            if (data.userTypeCounts) {
+                 summaryContainer.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">พนักงาน:</span>
+                        <span class="font-bold text-sky-600">${(data.userTypeCounts['พนักงาน'] || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">PC:</span>
+                        <span class="font-bold text-teal-600">${(data.userTypeCounts['pc'] || 0).toLocaleString()}</span>
+                    </div>
+                 `;
+            } else {
+                summaryContainer.innerHTML = '<p class="text-center text-gray-500">ไม่พบข้อมูลประเภทผู้ใช้</p>';
+            }
+
+
+            // --- Chart ---
             const labels = sortedResults.map(([,item]) => `${item.name} (เบอร์ ${item.number})`);
             const votes = sortedResults.map(([,item]) => item.votes);
             const backgroundColors = generateChartColors(sortedResults.length);
-
-            const tableContainer = document.getElementById('results-table-container');
-            let tableHTML = `<table class="w-full text-left">
-                    <thead class="bg-gray-200"><tr><th class="p-3">อันดับ</th><th class="p-3">ชื่อ</th><th class="p-3 text-right">คะแนน</th></tr></thead><tbody>`;
-            sortedResults.forEach(([id, item], index) => {
-                tableHTML += `<tr class="border-b"><td class="p-3 font-semibold">${index + 1}</td><td class="p-3">${item.name}</td><td class="p-3 text-right font-semibold">${item.votes.toLocaleString()}</td></tr>`;
-            });
-            tableHTML += '</tbody></table>';
-            tableContainer.innerHTML = tableHTML;
-
             const chartCanvas = document.getElementById('results-chart').getContext('2d');
             if(resultsChart) { resultsChart.destroy(); }
             resultsChart = new Chart(chartCanvas, {
@@ -244,18 +289,36 @@
 
         async function submitVote() {
             const candidateId = confirmVoteBtn.dataset.id;
+            const userType = localStorage.getItem(USER_TYPE_KEY);
+
+            if (!userType) {
+                alert('เกิดข้อผิดพลาด: ไม่พบประเภทผู้ใช้งาน กรุณาเริ่มต้นใหม่');
+                localStorage.clear();
+                window.location.hash = '';
+                location.reload();
+                return;
+            }
+
             confirmVoteBtn.disabled = true;
             confirmVoteBtn.textContent = 'กำลังส่ง...';
 
             try {
-                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ candidateId: candidateId }) });
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        candidateId: candidateId,
+                        userType: userType
+                    })
+                });
+
                 localStorage.setItem(VOTE_STORAGE_KEY, 'true');
                 votedMessage.classList.remove('hidden');
                 document.querySelectorAll('.vote-btn').forEach(b => { b.disabled = true; b.textContent = 'ลงคะแนนแล้ว'; });
                 closeModal('confirmation-modal');
                 openModal('success-modal'); 
                 await updateTotalVotes(); 
-                // บรรทัดที่ทำให้ปิดหน้าต่างอัตโนมัติถูกลบออกไปแล้ว
             } catch (error) {
                 console.error("Submit Vote Error:", error);
                 alert("เกิดข้อผิดพลาดในการส่งคะแนน");
@@ -265,6 +328,16 @@
             }
         }
         
+        function handleUserTypeSelection(event) {
+            const userType = event.currentTarget.dataset.type;
+            localStorage.setItem(USER_TYPE_KEY, userType);
+            
+            selectionView.classList.add('hidden');
+            voterView.classList.remove('hidden');
+            renderCandidates();
+            updateTotalVotes();
+        }
+
         function handleAdminLogin() {
             if (adminPasswordField.value === ADMIN_PASSWORD) {
                 sessionStorage.setItem('isAdminLoggedIn', 'true');
@@ -280,20 +353,32 @@
         function switchView() {
             clearInterval(adminInterval);
             const hash = window.location.hash;
+            const userType = localStorage.getItem(USER_TYPE_KEY);
+            const isAdmin = sessionStorage.getItem('isAdminLoggedIn') === 'true';
+
+            selectionView.classList.add('hidden');
+            voterView.classList.add('hidden');
+            adminView.classList.add('hidden');
+
             if (hash === '#admin') {
-                if (sessionStorage.getItem('isAdminLoggedIn') === 'true') {
-                    voterView.classList.add('hidden');
+                if (isAdmin) {
                     adminView.classList.remove('hidden');
                     renderAdminDashboard();
                     adminInterval = setInterval(renderAdminDashboard, ADMIN_REFRESH_INTERVAL);
                 } else {
                     openModal('admin-login-modal');
+                    if (userType) {
+                        voterView.classList.remove('hidden');
+                    } else {
+                        selectionView.classList.remove('hidden');
+                    }
                 }
-            } else { 
-                adminView.classList.add('hidden');
+            } else if (userType) {
                 voterView.classList.remove('hidden');
                 renderCandidates();
-                updateTotalVotes(); 
+                updateTotalVotes();
+            } else {
+                selectionView.classList.remove('hidden');
             }
         }
         
@@ -304,6 +389,8 @@
 
         window.addEventListener('hashchange', switchView);
         document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('select-employee-btn').addEventListener('click', handleUserTypeSelection);
+            document.getElementById('select-pc-btn').addEventListener('click', handleUserTypeSelection);
             switchView();
             confirmVoteBtn.addEventListener('click', submitVote);
             adminPasswordField.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleAdminLogin(); });
