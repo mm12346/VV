@@ -20,8 +20,26 @@
 
     <div class="container mx-auto p-4 sm:p-6 md:p-8">
 
+        <!-- ===== Employee ID Input View (New) ===== -->
+        <div id="employee-id-view">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-gray-700">ระบบโหวต</h1>
+                <p class="text-lg mt-2 text-gray-600">กรุณากรอกรหัสพนักงานเพื่อดำเนินการต่อ</p>
+            </header>
+            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <div class="flex flex-col space-y-4">
+                    <label for="employee-id-input" class="font-semibold text-gray-700">รหัสพนักงาน:</label>
+                    <input type="text" id="employee-id-input" maxlength="13" class="block w-full px-4 py-3 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="รหัสพนักงาน">
+                    <p id="employee-id-error" class="text-red-500 text-sm mt-2 hidden">ข้อความแจ้งข้อผิดพลาด</p>
+                    <button id="submit-employee-id-btn" class="bg-blue-600 text-white font-bold py-4 px-6 rounded-lg hover:bg-blue-700 text-xl transition">
+                        ตรวจสอบสิทธิ์
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- ===== User Type Selection View ===== -->
-        <div id="selection-view">
+        <div id="selection-view" class="hidden">
             <header class="text-center mb-8">
                 <h1 class="text-3xl sm:text-4xl font-bold text-blue-600">โปรดระบุประเภทของคุณ</h1>
                 <p class="text-lg mt-2 text-gray-600">กรุณาเลือกประเภทของท่าน</p>
@@ -58,7 +76,7 @@
                 </div>
             </div>
              <p id="voted-message" class="hidden text-center text-2xl font-bold text-green-600 bg-green-100 p-6 rounded-lg shadow-lg mt-8">
-                ขอบคุณสำหรับความร่วมมือ คุณได้ลงคะแนนเรียบร้อยแล้ว
+                ขอบคุณสำหรับความร่วมมือ รหัสพนักงานนี้ได้ลงคะแนนเรียบร้อยแล้ว
              </p>
         </div>
 
@@ -124,23 +142,24 @@
             </div>
             <h2 class="text-2xl font-bold mb-2">ลงคะแนนสำเร็จ</h2>
             <p class="mb-6 text-lg">ขอบคุณสำหรับความร่วมมือของคุณ</p>
-            <button onclick="closeModal('success-modal')" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">ปิด</button>
+            <button onclick="closeModal('success-modal'); location.reload();" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">ปิด</button>
         </div>
     </div>
 
     <script>
         // --- CONFIGURATION ---
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec'; // <-- อย่าลืมใส่ URL ที่ได้จากการ Deploy ใหม่
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec'; // <-- ใส่ URL ของคุณ
         const ADMIN_PASSWORD = '5867050201';
         const ADMIN_REFRESH_INTERVAL = 60000; 
         
         // --- STORAGE KEYS ---
-        const VOTE_STORAGE_KEY = 'hasVoted_election_round_2025_v3'; 
-        const USER_TYPE_KEY = 'userType_election_round_2025_v3'; 
+        const VOTER_ID_KEY = 'voterId_election_round_2025_v4'; 
+        const USER_TYPE_KEY = 'userType_election_round_2025_v4'; 
 
         // --- STATE & DOM ELEMENTS ---
         let resultsChart = null;
         let adminInterval = null;
+        const employeeIdView = document.getElementById('employee-id-view');
         const selectionView = document.getElementById('selection-view');
         const voterView = document.getElementById('voter-view');
         const adminView = document.getElementById('admin-view');
@@ -150,29 +169,75 @@
         const votedMessage = document.getElementById('voted-message');
         const confirmVoteBtn = document.getElementById('confirm-vote-btn');
         const adminPasswordField = document.getElementById('admin-password');
+        const employeeIdInput = document.getElementById('employee-id-input');
+        const employeeIdError = document.getElementById('employee-id-error');
+        const submitEmployeeIdBtn = document.getElementById('submit-employee-id-btn');
 
         // --- FUNCTIONS ---
         function openModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); }
         function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
 
-        async function fetchData(action) {
-            if (SCRIPT_URL.includes('ใส่ WEB APP URL')) {
+        async function fetchData(action, params = '') {
+            if (SCRIPT_URL.includes('ใส่ WEB APP URL') || SCRIPT_URL.trim() === '') {
                 document.body.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 h-screen flex items-center justify-center text-2xl"><div class="font-bold">**ข้อผิดพลาด**<br>กรุณาตั้งค่า SCRIPT_URL ในโค้ดก่อนใช้งาน</div></div>`;
                 return null;
             }
             try {
-                const response = await fetch(`${SCRIPT_URL}?action=${action}`);
+                const response = await fetch(`${SCRIPT_URL}?action=${action}${params}`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 return await response.json();
             } catch (error) {
                 console.error("Fetch Error:", error);
-                alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+                alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ กรุณาตรวจสอบการตั้งค่า SCRIPT_URL และการ Deploy Google Apps Script");
                 return null;
+            }
+        }
+        
+        async function handleEmployeeIdSubmit() {
+            const employeeId = employeeIdInput.value.trim();
+            
+            // New validation: 10-13 chars, optional 2-3 letters prefix (case-insensitive).
+            const validPattern = /^(?:[A-Z]{2,3})?\d+$/i;
+
+            if (employeeId.length < 10 || employeeId.length > 13 || !validPattern.test(employeeId)) {
+                employeeIdError.textContent = 'รูปแบบรหัสพนักงานไม่ถูกต้อง (ต้องมี 10-13 ตัว, สามารถขึ้นต้นด้วยตัวอักษร 2-3 ตัวได้)';
+                employeeIdError.classList.remove('hidden');
+                return;
+            }
+            
+            employeeIdError.classList.add('hidden');
+            submitEmployeeIdBtn.disabled = true;
+            submitEmployeeIdBtn.textContent = 'กำลังตรวจสอบ...';
+
+            try {
+                // Pass the ID in uppercase to ensure consistency in the backend check
+                const data = await fetchData('checkVoterStatus', `&employeeId=${employeeId.toUpperCase()}`);
+                
+                if (data === null) {
+                     throw new Error("Failed to get response from server.");
+                }
+
+                if (data.hasVoted) {
+                    employeeIdView.classList.add('hidden');
+                    voterView.classList.remove('hidden');
+                    candidatesGrid.innerHTML = '';
+                    votedMessage.classList.remove('hidden');
+                } else {
+                    sessionStorage.setItem(VOTER_ID_KEY, employeeId.toUpperCase());
+                    employeeIdView.classList.add('hidden');
+                    selectionView.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Voter Status Check Error:", error);
+                employeeIdError.textContent = "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล กรุณาลองใหม่อีกครั้ง";
+                employeeIdError.classList.remove('hidden');
+            } finally {
+                submitEmployeeIdBtn.disabled = false;
+                submitEmployeeIdBtn.textContent = 'ตรวจสอบสิทธิ์';
             }
         }
 
         async function renderCandidates() {
-            const hasVoted = localStorage.getItem(VOTE_STORAGE_KEY) === 'true';
             const data = await fetchData('getcandidates');
             
             candidatesGrid.innerHTML = ''; 
@@ -190,25 +255,21 @@
                         <h3 class="text-xl font-bold mb-1">${candidate.name}</h3>
                         <p class="text-2xl font-semibold text-green-700 mb-4">${candidate.number}</p>
                     </div>
-                    <button class="vote-btn w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 mt-auto" data-id="${candidate.id}" data-name="${candidate.name}" ${hasVoted ? 'disabled' : ''}>
-                        ${hasVoted ? 'ลงคะแนนแล้ว' : 'ลงคะแนน'}
+                    <button class="vote-btn w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 mt-auto" data-id="${candidate.id}" data-name="${candidate.name}">
+                        ลงคะแนน
                     </button>
                 `;
                 candidatesGrid.appendChild(card);
             });
 
-            if (hasVoted) {
-                votedMessage.classList.remove('hidden');
-            } else {
-                document.querySelectorAll('.vote-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                       const { id, name } = e.currentTarget.dataset;
-                       document.getElementById('modal-text').textContent = `คุณต้องการลงคะแนนให้ "${name}" ใช่หรือไม่?`;
-                       confirmVoteBtn.dataset.id = id;
-                       openModal('confirmation-modal');
-                    });
+            document.querySelectorAll('.vote-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                   const { id, name } = e.currentTarget.dataset;
+                   document.getElementById('modal-text').textContent = `คุณต้องการลงคะแนนให้ "${name}" ใช่หรือไม่?`;
+                   confirmVoteBtn.dataset.id = id;
+                   openModal('confirmation-modal');
                 });
-            }
+            });
         }
 
         async function updateTotalVotes() {
@@ -236,12 +297,10 @@
                 return;
             }
             
-            // --- Total Votes Display ---
             if (data.totalVotes !== undefined) {
                 adminTotalVotesDisplay.innerHTML = `ผู้ลงคะแนนทั้งหมด: <span class="text-purple-700">${data.totalVotes.toLocaleString()}</span> คน`;
             }
 
-            // --- Results Table ---
             const sortedResults = data.results ? Object.entries(data.results).sort(([,a],[,b]) => b.votes - a.votes) : [];
             const tableContainer = document.getElementById('results-table-container');
             if (sortedResults.length > 0) {
@@ -256,7 +315,6 @@
                 tableContainer.innerHTML = '<p class="text-center text-gray-500">ยังไม่มีผู้ลงคะแนน</p>';
             }
 
-            // --- User Type Summary Display ---
             const summaryContainer = document.getElementById('user-type-summary');
             if (data.userTypeCounts) {
                  summaryContainer.innerHTML = `
@@ -273,8 +331,6 @@
                 summaryContainer.innerHTML = '<p class="text-center text-gray-500">ไม่พบข้อมูลประเภทผู้ใช้</p>';
             }
 
-
-            // --- Chart ---
             const labels = sortedResults.map(([,item]) => `${item.name} (เบอร์ ${item.number})`);
             const votes = sortedResults.map(([,item]) => item.votes);
             const backgroundColors = generateChartColors(sortedResults.length);
@@ -289,11 +345,12 @@
 
         async function submitVote() {
             const candidateId = confirmVoteBtn.dataset.id;
-            const userType = localStorage.getItem(USER_TYPE_KEY);
+            const userType = sessionStorage.getItem(USER_TYPE_KEY);
+            const employeeId = sessionStorage.getItem(VOTER_ID_KEY);
 
-            if (!userType) {
-                alert('เกิดข้อผิดพลาด: ไม่พบประเภทผู้ใช้งาน กรุณาเริ่มต้นใหม่');
-                localStorage.clear();
+            if (!userType || !employeeId) {
+                alert('เกิดข้อผิดพลาด: ข้อมูลการลงคะแนนไม่สมบูรณ์ กรุณาเริ่มต้นใหม่');
+                sessionStorage.clear();
                 window.location.hash = '';
                 location.reload();
                 return;
@@ -308,17 +365,15 @@
                     mode: 'no-cors', 
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
+                        employeeId: employeeId,
                         candidateId: candidateId,
                         userType: userType
                     })
                 });
-
-                localStorage.setItem(VOTE_STORAGE_KEY, 'true');
-                votedMessage.classList.remove('hidden');
-                document.querySelectorAll('.vote-btn').forEach(b => { b.disabled = true; b.textContent = 'ลงคะแนนแล้ว'; });
+                
+                sessionStorage.clear();
                 closeModal('confirmation-modal');
                 openModal('success-modal'); 
-                await updateTotalVotes(); 
             } catch (error) {
                 console.error("Submit Vote Error:", error);
                 alert("เกิดข้อผิดพลาดในการส่งคะแนน");
@@ -330,7 +385,7 @@
         
         function handleUserTypeSelection(event) {
             const userType = event.currentTarget.dataset.type;
-            localStorage.setItem(USER_TYPE_KEY, userType);
+            sessionStorage.setItem(USER_TYPE_KEY, userType);
             
             selectionView.classList.add('hidden');
             voterView.classList.remove('hidden');
@@ -353,9 +408,11 @@
         function switchView() {
             clearInterval(adminInterval);
             const hash = window.location.hash;
-            const userType = localStorage.getItem(USER_TYPE_KEY);
+            const voterId = sessionStorage.getItem(VOTER_ID_KEY);
+            const userType = sessionStorage.getItem(USER_TYPE_KEY);
             const isAdmin = sessionStorage.getItem('isAdminLoggedIn') === 'true';
 
+            employeeIdView.classList.add('hidden');
             selectionView.classList.add('hidden');
             voterView.classList.add('hidden');
             adminView.classList.add('hidden');
@@ -367,18 +424,25 @@
                     adminInterval = setInterval(renderAdminDashboard, ADMIN_REFRESH_INTERVAL);
                 } else {
                     openModal('admin-login-modal');
-                    if (userType) {
+                    // Fallback view if admin login is cancelled
+                    if (voterId && userType) {
                         voterView.classList.remove('hidden');
-                    } else {
+                    } else if (voterId) {
                         selectionView.classList.remove('hidden');
+                    } else {
+                        employeeIdView.classList.remove('hidden');
                     }
                 }
-            } else if (userType) {
-                voterView.classList.remove('hidden');
-                renderCandidates();
-                updateTotalVotes();
-            } else {
-                selectionView.classList.remove('hidden');
+            } else { // Voter Path
+                if (voterId && userType) {
+                    voterView.classList.remove('hidden');
+                    renderCandidates();
+                    updateTotalVotes();
+                } else if (voterId) {
+                    selectionView.classList.remove('hidden');
+                } else {
+                    employeeIdView.classList.remove('hidden');
+                }
             }
         }
         
@@ -389,11 +453,16 @@
 
         window.addEventListener('hashchange', switchView);
         document.addEventListener('DOMContentLoaded', () => {
+            submitEmployeeIdBtn.addEventListener('click', handleEmployeeIdSubmit);
+            employeeIdInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleEmployeeIdSubmit(); });
             document.getElementById('select-employee-btn').addEventListener('click', handleUserTypeSelection);
             document.getElementById('select-pc-btn').addEventListener('click', handleUserTypeSelection);
-            switchView();
             confirmVoteBtn.addEventListener('click', submitVote);
             adminPasswordField.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleAdminLogin(); });
+            
+            // Clear session storage on page load to ensure a fresh start
+            sessionStorage.clear();
+            switchView();
         });
     </script>
 </body>
