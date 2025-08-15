@@ -1,469 +1,466 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบลงคะแนนเลือกตั้ง (รอบใหม่)</title>
-    <!-- Tailwind CSS for styling -->
+    <title>แดชบอร์ดสรุปการแจ้งปัญหา</title>
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for graphs -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'kanit': ['Kanit', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Kanit', sans-serif; }
-        .candidate-card { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-        .candidate-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
-        button:disabled { cursor: not-allowed; opacity: 0.6; }
+        body {
+            font-family: 'Kanit', sans-serif;
+        }
+        /* Custom scrollbar for a modern look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #a8a8a8; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #7a7a7a; }
+        html.dark ::-webkit-scrollbar-track { background: #2d3748; }
+        html.dark ::-webkit-scrollbar-thumb { background: #4a5568; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #718096; }
+        
+        /* Ensure table images are clickable and have a pointer cursor */
+        .table-image {
+            cursor: pointer;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
 
-    <div class="container mx-auto p-4 sm:p-6 md:p-8">
+    <!-- Main Application Container -->
+    <div id="app" class="min-h-screen p-4 sm:p-6 md:p-8">
 
-        <!-- ===== Employee ID Input View (New) ===== -->
-        <div id="employee-id-view">
-            <header class="text-center mb-8">
-                <h1 class="text-3xl sm:text-4xl font-bold text-gray-700">ระบบโหวต</h1>
-                <p class="text-lg mt-2 text-gray-600">กรุณากรอกรหัสพนักงานเพื่อดำเนินการต่อ</p>
-            </header>
-            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
-                <div class="flex flex-col space-y-4">
-                    <label for="employee-id-input" class="font-semibold text-gray-700">รหัสพนักงาน:</label>
-                    <input type="text" id="employee-id-input" maxlength="13" class="block w-full px-4 py-3 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="รหัสพนักงาน">
-                    <p id="employee-id-error" class="text-red-500 text-sm mt-2 hidden">ข้อความแจ้งข้อผิดพลาด</p>
-                    <button id="submit-employee-id-btn" class="bg-blue-600 text-white font-bold py-4 px-6 rounded-lg hover:bg-blue-700 text-xl transition">
-                        ตรวจสอบสิทธิ์
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="fixed inset-0 bg-white/70 dark:bg-black/70 z-[100] flex items-center justify-center hidden backdrop-blur-sm">
+            <div class="text-center">
+                <svg class="h-12 w-12 animate-spin text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2 font-semibold text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+
+        <!-- Image Zoom Modal -->
+        <div id="image-zoom-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm cursor-zoom-out">
+            <img id="zoomed-image" src="" alt="Zoomed image" class="max-w-full max-h-full rounded-lg cursor-default">
+        </div>
+
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="layout-dashboard" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
+                    <h1 class="text-2xl font-bold text-gray-800 dark:text-white">แดชบอร์ดสรุปภาพรวม</h1>
+                </div>
+                <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                    <select id="branch-select" class="w-full sm:w-auto px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                        <option value="">เลือกสาขา</option>
+                    </select>
+                    <select id="month-filter" class="w-full sm:w-auto px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                        <option value="">ทุกเดือน</option>
+                    </select>
+                    <select id="status-filter" class="w-full sm:w-auto px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                        <option value="">ทุกสถานะ</option>
+                    </select>
+                    <button id="refresh-btn" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="รีเฟรชข้อมูล">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                    </button>
+                    <button id="print-btn" class="p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-2" disabled>
+                        <i data-lucide="printer" class="w-5 h-5"></i>
+                        <span class="hidden sm:inline">ปริ้น</span>
                     </button>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- ===== User Type Selection View ===== -->
-        <div id="selection-view" class="hidden">
-            <header class="text-center mb-8">
-                <h1 class="text-3xl sm:text-4xl font-bold text-blue-600">โปรดระบุประเภทของคุณ</h1>
-                <p class="text-lg mt-2 text-gray-600">กรุณาเลือกประเภทของท่าน</p>
-            </header>
-            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
-                <div class="flex flex-col space-y-4">
-                     <button id="select-employee-btn" data-type="พนักงาน" class="selection-btn bg-sky-500 text-white font-bold py-4 px-6 rounded-lg hover:bg-sky-600 text-xl transition">
-                        พนักงาน
-                    </button>
-                    <button id="select-pc-btn" data-type="pc" class="selection-btn bg-teal-500 text-white font-bold py-4 px-6 rounded-lg hover:bg-teal-600 text-xl transition">
-                        PC
-                    </button>
-                </div>
+        <!-- Main Content -->
+        <main id="main-content" class="hidden">
+            <!-- Summary Cards -->
+            <div id="summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <!-- Summary cards will be injected here -->
             </div>
-        </div>
 
-        <!-- ===== Voter View (Initially Hidden) ===== -->
-        <div id="voter-view" class="hidden">
-            <header class="text-center mb-8">
-                <h1 class="text-3xl sm:text-4xl font-bold text-green-600">โหวตพนักงานดีเด่นด้านความปลอดภัย</h1>
-                <p class="text-lg mt-2 text-gray-600">โปรดเลือกพนักงานที่ท่านเห็นว่าเหมาะสม</p>
-                <div id="total-votes-display" class="mt-4 text-xl font-semibold bg-white p-3 rounded-lg shadow-md inline-block">
-                    กำลังโหลดข้อมูล...
-                </div>
-            </header>
-
-            <div id="candidates-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Loading Skeleton -->
-                <div class="loading-placeholder bg-white p-5 rounded-lg shadow-lg text-center animate-pulse col-span-full">
-                    <div class="h-40 bg-gray-200 rounded-md w-full mb-4"></div>
-                    <div class="h-6 bg-gray-200 rounded w-3/4 mx-auto mb-2"></div>
-                    <div class="h-4 bg-gray-200 rounded w-1/2 mx-auto mb-4"></div>
-                    <div class="h-12 bg-gray-300 rounded w-full"></div>
-                </div>
+            <!-- Table Container -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
+                 <h2 id="table-title" class="text-xl font-bold mb-4">รายการแจ้งปัญหา</h2>
+                 <div class="overflow-x-auto">
+                    <table id="requests-table" class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <!-- Table header will be injected here -->
+                        </thead>
+                        <tbody>
+                            <!-- Table body will be injected here -->
+                        </tbody>
+                    </table>
+                 </div>
             </div>
-             <p id="voted-message" class="hidden text-center text-2xl font-bold text-green-600 bg-green-100 p-6 rounded-lg shadow-lg mt-8">
-                ขอบคุณสำหรับความร่วมมือ รหัสพนักงานนี้ได้ลงคะแนนเรียบร้อยแล้ว
-             </p>
-        </div>
-
-        <!-- ===== Admin View ===== -->
-        <div id="admin-view" class="hidden">
-            <header class="text-center mb-8">
-                <h1 class="text-3xl sm:text-4xl font-bold text-purple-600">สรุปผลคะแนน (สำหรับผู้ดูแล)</h1>
-                 <div id="admin-total-votes-display" class="mt-4 text-xl font-semibold bg-white p-3 rounded-lg shadow-md inline-block">
-                    กำลังโหลดข้อมูล...
-                </div>
-            </header>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-semibold mb-4">กราฟแสดงผลคะแนน</h2>
-                    <canvas id="results-chart"></canvas>
-                </div>
-                <div class="space-y-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <h2 class="text-2xl font-semibold mb-4">ตารางสรุปผล</h2>
-                        <div id="results-table-container" class="overflow-x-auto">
-                             <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <h2 class="text-2xl font-semibold mb-4">สรุปตามประเภทผู้ลงคะแนน</h2>
-                        <div id="user-type-summary" class="space-y-3 text-lg">
-                            <p class="text-center text-gray-500">กำลังโหลดข้อมูล...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <footer class="text-center mt-12 text-gray-500">
-            <p>New Election Voting System</p>
-            <a href="#" onclick="navigateToHash(event)" class="text-blue-500 hover:underline">สลับไปหน้า Admin/Voter</a>
-        </footer>
-    </div>
-
-    <!-- Modals -->
-    <div id="confirmation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full text-center">
-            <h2 class="text-2xl font-bold mb-4">ยืนยันการลงคะแนน</h2>
-            <p id="modal-text" class="mb-6 text-lg">คุณต้องการลงคะแนนให้ ... ใช่หรือไม่?</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirm-vote-btn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700">ยืนยัน</button>
-                <button onclick="closeModal('confirmation-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg hover:bg-gray-400">ยกเลิก</button>
-            </div>
-        </div>
-    </div>
-    <div id="admin-login-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full">
-            <h2 class="text-2xl font-bold mb-4 text-center">สำหรับผู้ดูแลระบบ</h2>
-            <input type="password" id="admin-password" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm" placeholder="กรอกรหัสผ่าน">
-            <p id="login-error-msg" class="text-red-500 text-sm mt-2 hidden">รหัสผ่านไม่ถูกต้อง</p>
-            <button onclick="handleAdminLogin()" class="w-full mt-4 bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700">เข้าสู่ระบบ</button>
-        </div>
-    </div>
-    <div id="success-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-lg shadow-2xl p-8 max-w-sm w-full text-center">
-             <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                <svg class="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <h2 class="text-2xl font-bold mb-2">ลงคะแนนสำเร็จ</h2>
-            <p class="mb-6 text-lg">ขอบคุณสำหรับความร่วมมือของคุณ</p>
-            <button onclick="closeModal('success-modal'); location.reload();" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">ปิด</button>
-        </div>
-    </div>
-
-    <script>
-        // --- CONFIGURATION ---
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5WikCuTr6LAFoQIHUChBco-vjN-1s69LwWGNfi8soz3F-d5BBFrcFPskZbKF3yl-w/exec'; // <-- ใส่ URL ของคุณ
-        const ADMIN_PASSWORD = '5867050201';
-        const ADMIN_REFRESH_INTERVAL = 60000; 
+        </main>
         
-        // --- STORAGE KEYS ---
-        const VOTER_ID_KEY = 'voterId_election_round_2025_v4'; 
-        const USER_TYPE_KEY = 'userType_election_round_2025_v4'; 
+        <!-- Placeholder for when no branch is selected -->
+        <div id="placeholder" class="flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 mt-16">
+            <i data-lucide="info" class="w-16 h-16 mb-4"></i>
+            <h2 class="text-2xl font-semibold">กรุณาเลือกสาขา</h2>
+            <p>เลือกสาขาจากเมนูด้านบนเพื่อแสดงข้อมูลแดชบอร์ด</p>
+        </div>
+    </div>
 
-        // --- STATE & DOM ELEMENTS ---
-        let resultsChart = null;
-        let adminInterval = null;
-        const employeeIdView = document.getElementById('employee-id-view');
-        const selectionView = document.getElementById('selection-view');
-        const voterView = document.getElementById('voter-view');
-        const adminView = document.getElementById('admin-view');
-        const candidatesGrid = document.getElementById('candidates-grid');
-        const totalVotesDisplay = document.getElementById('total-votes-display');
-        const adminTotalVotesDisplay = document.getElementById('admin-total-votes-display');
-        const votedMessage = document.getElementById('voted-message');
-        const confirmVoteBtn = document.getElementById('confirm-vote-btn');
-        const adminPasswordField = document.getElementById('admin-password');
-        const employeeIdInput = document.getElementById('employee-id-input');
-        const employeeIdError = document.getElementById('employee-id-error');
-        const submitEmployeeIdBtn = document.getElementById('submit-employee-id-btn');
+    <script type="module">
+        // =================================================================================
+        // CONFIGURATION
+        // =================================================================================
+        const GAS_API_URLS = [
+            "https://script.google.com/macros/s/AKfycbzKSaLBibuPramXohqbpvBENcxWi97sQMxS4em4c_xCN0ctk78NHzQOTAEK6GPXgdJv/exec",
+        ];
 
-        // --- FUNCTIONS ---
-        function openModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); }
-        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
+        // =================================================================================
+        // APP STATE
+        // =================================================================================
+        let currentBranchName = '';
+        let allBranchRequests = []; // Store all requests for the selected branch
+        let filteredRequests = []; // Store currently displayed requests
 
-        async function fetchData(action, params = '') {
-            if (SCRIPT_URL.includes('ใส่ WEB APP URL') || SCRIPT_URL.trim() === '') {
-                document.body.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 h-screen flex items-center justify-center text-2xl"><div class="font-bold">**ข้อผิดพลาด**<br>กรุณาตั้งค่า SCRIPT_URL ในโค้ดก่อนใช้งาน</div></div>`;
-                return null;
-            }
+        // =================================================================================
+        // DOM ELEMENTS
+        // =================================================================================
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const branchSelect = document.getElementById('branch-select');
+        const monthFilter = document.getElementById('month-filter');
+        const statusFilter = document.getElementById('status-filter');
+        const printBtn = document.getElementById('print-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const mainContent = document.getElementById('main-content');
+        const placeholder = document.getElementById('placeholder');
+        const summaryCardsContainer = document.getElementById('summary-cards');
+        const requestsTableBody = document.querySelector('#requests-table tbody');
+        const tableTitle = document.getElementById('table-title');
+        const imageZoomModal = document.getElementById('image-zoom-modal');
+        const zoomedImage = document.getElementById('zoomed-image');
+
+        // =================================================================================
+        // UTILITY FUNCTIONS
+        // =================================================================================
+        const showLoading = (show) => loadingOverlay.classList.toggle('hidden', !show);
+
+        const statusStyles = {
+            "รอดำเนินการ": { text: "text-yellow-800", bg: "bg-yellow-100", border: "border-yellow-400" },
+            "กำลังดำเนินการ": { text: "text-blue-800", bg: "bg-blue-100", border: "border-blue-500" },
+            "ซ่อมเสร็จแล้ว": { text: "text-green-800", bg: "bg-green-100", border: "border-green-500" },
+            "รออะไหล่/ยกเลิก": { text: "text-red-800", bg: "bg-red-100", border: "border-red-500" },
+        };
+
+        // =================================================================================
+        // API COMMUNICATION
+        // =================================================================================
+        async function callGasApi(payload) {
+            const apiUrl = GAS_API_URLS[0];
             try {
-                const response = await fetch(`${SCRIPT_URL}?action=${action}${params}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return await response.json();
+                const urlWithDummyParam = `${apiUrl}?timestamp=${new Date().getTime()}`;
+                const response = await fetch(urlWithDummyParam, {
+                    method: 'POST', mode: 'cors', cache: 'no-cache',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload), redirect: 'follow'
+                });
+                if (!response.ok) throw new Error(`Network response was not ok, status: ${response.status}`);
+                const result = await response.json();
+                if (result.status === 'error') throw new Error(result.message || 'API Error');
+                return result.data;
             } catch (error) {
-                console.error("Fetch Error:", error);
-                alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ กรุณาตรวจสอบการตั้งค่า SCRIPT_URL และการ Deploy Google Apps Script");
-                return null;
+                console.error(`API Call Error with ${apiUrl}:`, error.message);
+                alert(`เกิดข้อผิดพลาดในการเชื่อมต่อ: ${error.message}`);
+                throw error;
             }
         }
-        
-        async function handleEmployeeIdSubmit() {
-            const employeeId = employeeIdInput.value.trim();
-            
-            // New validation: 10-13 chars, optional 2-3 letters prefix (case-insensitive).
-            const validPattern = /^(?:[A-Z]{2,3})?\d+$/i;
 
-            if (employeeId.length < 10 || employeeId.length > 13 || !validPattern.test(employeeId)) {
-                employeeIdError.textContent = 'รูปแบบรหัสพนักงานไม่ถูกต้อง (ต้องมี 10-13 ตัว, สามารถขึ้นต้นด้วยตัวอักษร 2-3 ตัวได้)';
-                employeeIdError.classList.remove('hidden');
-                return;
-            }
-            
-            employeeIdError.classList.add('hidden');
-            submitEmployeeIdBtn.disabled = true;
-            submitEmployeeIdBtn.textContent = 'กำลังตรวจสอบ...';
-
+        // =================================================================================
+        // DATA FETCHING AND RENDERING
+        // =================================================================================
+        async function loadBranches() {
+            showLoading(true);
             try {
-                // Pass the ID in uppercase to ensure consistency in the backend check
-                const data = await fetchData('checkVoterStatus', `&employeeId=${employeeId.toUpperCase()}`);
-                
-                if (data === null) {
-                     throw new Error("Failed to get response from server.");
-                }
-
-                if (data.hasVoted) {
-                    employeeIdView.classList.add('hidden');
-                    voterView.classList.remove('hidden');
-                    candidatesGrid.innerHTML = '';
-                    votedMessage.classList.remove('hidden');
+                const branches = await callGasApi({ action: 'getBranches' });
+                if (branches && branches.length > 0) {
+                    branchSelect.innerHTML = '<option value="">-- กรุณาเลือกสาขา --</option>';
+                    branches.forEach(branch => {
+                        const option = document.createElement('option');
+                        option.value = branch.sheetId;
+                        option.textContent = branch.branchName;
+                        branchSelect.appendChild(option);
+                    });
+                    branchSelect.disabled = false;
                 } else {
-                    sessionStorage.setItem(VOTER_ID_KEY, employeeId.toUpperCase());
-                    employeeIdView.classList.add('hidden');
-                    selectionView.classList.remove('hidden');
+                    branchSelect.innerHTML = '<option value="">ไม่พบข้อมูลสาขา</option>';
                 }
             } catch (error) {
-                console.error("Voter Status Check Error:", error);
-                employeeIdError.textContent = "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล กรุณาลองใหม่อีกครั้ง";
-                employeeIdError.classList.remove('hidden');
+                console.error("Failed to load branches:", error);
             } finally {
-                submitEmployeeIdBtn.disabled = false;
-                submitEmployeeIdBtn.textContent = 'ตรวจสอบสิทธิ์';
+                showLoading(false);
             }
         }
 
-        async function renderCandidates() {
-            const data = await fetchData('getcandidates');
-            
-            candidatesGrid.innerHTML = ''; 
-            if (!data) {
-                candidatesGrid.innerHTML = '<p class="text-center text-red-500 col-span-full">ไม่สามารถโหลดข้อมูลผู้สมัครได้</p>';
+        async function fetchAndDisplayData(sheetId, branchName) {
+            if (!sheetId) {
+                mainContent.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                printBtn.disabled = true;
+                monthFilter.disabled = true;
+                statusFilter.disabled = true;
                 return;
             }
+            showLoading(true);
+            mainContent.classList.add('hidden');
+            placeholder.classList.add('hidden');
+            
+            try {
+                const requests = await callGasApi({ action: 'getRequests', isAdmin: true, sheetId: sheetId });
+                allBranchRequests = requests.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
+                currentBranchName = branchName;
 
-            data.forEach(candidate => {
-                const card = document.createElement('div');
-                card.className = 'candidate-card bg-white p-5 rounded-lg shadow-lg text-center flex flex-col h-full';
-                card.innerHTML = `
-                    <img src="${candidate.imageUrl}" alt="รูปของ ${candidate.name}" class="w-full h-64 object-contain bg-gray-200 rounded-md mb-4" onerror="this.onerror=null;this.src='https://placehold.co/400x400/e2e8f0/64748b?text=ไม่มีรูป';">
-                    <div class="flex-grow">
-                        <h3 class="text-xl font-bold mb-1">${candidate.name}</h3>
-                        <p class="text-2xl font-semibold text-green-700 mb-4">${candidate.number}</p>
-                    </div>
-                    <button class="vote-btn w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 mt-auto" data-id="${candidate.id}" data-name="${candidate.name}">
-                        ลงคะแนน
-                    </button>
+                // Reset filters and apply
+                monthFilter.value = "";
+                statusFilter.value = "";
+                applyFiltersAndRender();
+                
+                tableTitle.textContent = `รายการแจ้งปัญหา - สาขา ${branchName}`;
+                mainContent.classList.remove('hidden');
+                printBtn.disabled = false;
+                monthFilter.disabled = false;
+                statusFilter.disabled = false;
+            } catch (error) {
+                placeholder.classList.remove('hidden');
+                placeholder.innerHTML = `<i data-lucide="server-crash" class="w-16 h-16 mb-4 text-red-500"></i><h2 class="text-2xl font-semibold">เกิดข้อผิดพลาด</h2><p>ไม่สามารถโหลดข้อมูลของสาขา ${branchName} ได้</p>`;
+                lucide.createIcons();
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function applyFiltersAndRender() {
+            const statusFilterValue = statusFilter.value;
+            const monthFilterValue = monthFilter.value;
+
+            let tempFiltered = [...allBranchRequests];
+
+            if (statusFilterValue) {
+                tempFiltered = tempFiltered.filter(req => req.status === statusFilterValue);
+            }
+            if (monthFilterValue !== "") {
+                tempFiltered = tempFiltered.filter(req => new Date(req.date).getMonth() == monthFilterValue);
+            }
+            
+            filteredRequests = tempFiltered; // Update the global filtered list
+            updateSummaryCards(filteredRequests);
+            renderTable(filteredRequests);
+        }
+
+        function updateSummaryCards(requests) {
+            const counts = { "รอดำเนินการ": 0, "กำลังดำเนินการ": 0, "ซ่อมเสร็จแล้ว": 0, "รออะไหล่/ยกเลิก": 0 };
+            requests.forEach(req => { if (counts.hasOwnProperty(req.status)) counts[req.status]++; });
+
+            summaryCardsContainer.innerHTML = Object.keys(statusStyles).map(status => `
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md border-l-4 ${statusStyles[status].border}">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">${status}</p>
+                    <p class="text-3xl font-bold text-gray-800 dark:text-white mt-2">${counts[status]}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderTable(requests) {
+            const tableHead = document.querySelector('#requests-table thead');
+            tableHead.innerHTML = `
+                <tr>
+                    <th scope="col" class="px-4 py-3">ลำดับ</th>
+                    <th scope="col" class="px-4 py-3">วันที่แจ้ง</th>
+                    <th scope="col" class="px-4 py-3">ปัญหา</th>
+                    <th scope="col" class="px-4 py-3">ผู้แจ้ง</th>
+                    <th scope="col" class="px-4 py-3">ผู้รับผิดชอบ</th>
+                    <th scope="col" class="px-4 py-3">สถานะ</th>
+                    <th scope="col" class="px-4 py-3">รูปก่อนแก้ไข</th>
+                    <th scope="col" class="px-4 py-3">รูปหลังแก้ไข</th>
+                    <th scope="col" class="px-4 py-3">อัปเดตล่าสุด</th>
+                </tr>
+            `;
+
+            requestsTableBody.innerHTML = '';
+            if (requests.length === 0) {
+                requestsTableBody.innerHTML = `
+                    <tr class="bg-white dark:bg-gray-800">
+                        <td colspan="9" class="px-6 py-4 text-center">ไม่พบรายการที่ตรงกับตัวกรอง</td>
+                    </tr>
                 `;
-                candidatesGrid.appendChild(card);
-            });
-
-            document.querySelectorAll('.vote-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                   const { id, name } = e.currentTarget.dataset;
-                   document.getElementById('modal-text').textContent = `คุณต้องการลงคะแนนให้ "${name}" ใช่หรือไม่?`;
-                   confirmVoteBtn.dataset.id = id;
-                   openModal('confirmation-modal');
-                });
-            });
-        }
-
-        async function updateTotalVotes() {
-             const data = await fetchData('getresults');
-             if (data && data.totalVotes !== undefined) {
-                 totalVotesDisplay.innerHTML = `มีผู้ลงคะแนนแล้ว: <span class="text-blue-700">${data.totalVotes.toLocaleString()}</span> คน`;
-             } else if (data !== null) { 
-                 totalVotesDisplay.innerHTML = `ไม่สามารถโหลดข้อมูลได้`;
-             }
-        }
-        
-        function generateChartColors(count) {
-            const colors = [];
-            for (let i = 0; i < count; i++) {
-                colors.push(`hsla(${(i * 360 / count)}, 70%, 60%, 0.8)`);
-            }
-            return colors;
-        }
-
-        async function renderAdminDashboard() {
-            const data = await fetchData('getresults');
-            if (!data) {
-                document.getElementById('results-table-container').innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดข้อมูลสรุปผลได้</p>';
-                document.getElementById('user-type-summary').innerHTML = '<p class="text-center text-red-500">ไม่สามารถโหลดข้อมูลสรุปผลได้</p>';
-                return;
-            }
-            
-            if (data.totalVotes !== undefined) {
-                adminTotalVotesDisplay.innerHTML = `ผู้ลงคะแนนทั้งหมด: <span class="text-purple-700">${data.totalVotes.toLocaleString()}</span> คน`;
-            }
-
-            const sortedResults = data.results ? Object.entries(data.results).sort(([,a],[,b]) => b.votes - a.votes) : [];
-            const tableContainer = document.getElementById('results-table-container');
-            if (sortedResults.length > 0) {
-                let tableHTML = `<table class="w-full text-left">
-                        <thead class="bg-gray-200"><tr><th class="p-3">อันดับ</th><th class="p-3">ชื่อ</th><th class="p-3 text-right">คะแนน</th></tr></thead><tbody>`;
-                sortedResults.forEach(([id, item], index) => {
-                    tableHTML += `<tr class="border-b"><td class="p-3 font-semibold">${index + 1}</td><td class="p-3">${item.name}</td><td class="p-3 text-right font-semibold">${item.votes.toLocaleString()}</td></tr>`;
-                });
-                tableHTML += '</tbody></table>';
-                tableContainer.innerHTML = tableHTML;
-            } else {
-                tableContainer.innerHTML = '<p class="text-center text-gray-500">ยังไม่มีผู้ลงคะแนน</p>';
-            }
-
-            const summaryContainer = document.getElementById('user-type-summary');
-            if (data.userTypeCounts) {
-                 summaryContainer.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">พนักงาน:</span>
-                        <span class="font-bold text-sky-600">${(data.userTypeCounts['พนักงาน'] || 0).toLocaleString()}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">PC:</span>
-                        <span class="font-bold text-teal-600">${(data.userTypeCounts['pc'] || 0).toLocaleString()}</span>
-                    </div>
-                 `;
-            } else {
-                summaryContainer.innerHTML = '<p class="text-center text-gray-500">ไม่พบข้อมูลประเภทผู้ใช้</p>';
-            }
-
-            const labels = sortedResults.map(([,item]) => `${item.name} (เบอร์ ${item.number})`);
-            const votes = sortedResults.map(([,item]) => item.votes);
-            const backgroundColors = generateChartColors(sortedResults.length);
-            const chartCanvas = document.getElementById('results-chart').getContext('2d');
-            if(resultsChart) { resultsChart.destroy(); }
-            resultsChart = new Chart(chartCanvas, {
-                type: 'bar',
-                data: { labels: labels, datasets: [{ label: 'คะแนน', data: votes, backgroundColor: backgroundColors, borderWidth: 1 }] },
-                options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, responsive: true, plugins: { legend: { display: false } } }
-            });
-        }
-
-        async function submitVote() {
-            const candidateId = confirmVoteBtn.dataset.id;
-            const userType = sessionStorage.getItem(USER_TYPE_KEY);
-            const employeeId = sessionStorage.getItem(VOTER_ID_KEY);
-
-            if (!userType || !employeeId) {
-                alert('เกิดข้อผิดพลาด: ข้อมูลการลงคะแนนไม่สมบูรณ์ กรุณาเริ่มต้นใหม่');
-                sessionStorage.clear();
-                window.location.hash = '';
-                location.reload();
                 return;
             }
 
-            confirmVoteBtn.disabled = true;
-            confirmVoteBtn.textContent = 'กำลังส่ง...';
-
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        employeeId: employeeId,
-                        candidateId: candidateId,
-                        userType: userType
-                    })
-                });
+            requests.forEach((req, index) => {
+                const style = statusStyles[req.status] || { bg: 'bg-gray-100', text: 'text-gray-800' };
+                const beforeImgHtml = req.beforeImageUrl ? `<img src="${req.beforeImageUrl}" class="w-14 h-14 object-cover rounded table-image mx-auto">` : 'ไม่มี';
+                const afterImgHtml = req.afterImageUrl ? `<img src="${req.afterImageUrl}" class="w-14 h-14 object-cover rounded table-image mx-auto">` : 'ไม่มี';
                 
-                sessionStorage.clear();
-                closeModal('confirmation-modal');
-                openModal('success-modal'); 
-            } catch (error) {
-                console.error("Submit Vote Error:", error);
-                alert("เกิดข้อผิดพลาดในการส่งคะแนน");
-            } finally {
-                confirmVoteBtn.disabled = false;
-                confirmVoteBtn.textContent = 'ยืนยัน';
+                const row = `
+                    <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        <td class="px-4 py-2 text-center">${index + 1}</td>
+                        <td class="px-4 py-2 text-center">${new Date(req.date).toLocaleDateString('th-TH')}</td>
+                        <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">${req.problem}</td>
+                        <td class="px-4 py-2 text-center">${req.requesterName}</td>
+                        <td class="px-4 py-2 text-center">${req.assignedToName || 'ยังไม่ระบุ'}</td>
+                        <td class="px-4 py-2 text-center">
+                            <span class="px-2 py-1 font-semibold leading-tight rounded-full ${style.bg} ${style.text}">
+                                ${req.status}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2 text-center">${beforeImgHtml}</td>
+                        <td class="px-4 py-2 text-center">${afterImgHtml}</td>
+                        <td class="px-4 py-2 text-center">${new Date(req.lastUpdated).toLocaleString('th-TH')}</td>
+                    </tr>
+                `;
+                requestsTableBody.innerHTML += row;
+            });
+        }
+
+        // =================================================================================
+        // PRINTING LOGIC
+        // =================================================================================
+        function handlePrint() {
+            if (filteredRequests.length === 0) {
+                alert('ไม่มีข้อมูลสำหรับปริ้น');
+                return;
             }
-        }
-        
-        function handleUserTypeSelection(event) {
-            const userType = event.currentTarget.dataset.type;
-            sessionStorage.setItem(USER_TYPE_KEY, userType);
-            
-            selectionView.classList.add('hidden');
-            voterView.classList.remove('hidden');
-            renderCandidates();
-            updateTotalVotes();
-        }
 
-        function handleAdminLogin() {
-            if (adminPasswordField.value === ADMIN_PASSWORD) {
-                sessionStorage.setItem('isAdminLoggedIn', 'true');
-                adminPasswordField.value = '';
-                document.getElementById('login-error-msg').classList.add('hidden');
-                closeModal('admin-login-modal');
-                switchView();
-            } else {
-                document.getElementById('login-error-msg').classList.remove('hidden');
-            }
-        }
-        
-        function switchView() {
-            clearInterval(adminInterval);
-            const hash = window.location.hash;
-            const voterId = sessionStorage.getItem(VOTER_ID_KEY);
-            const userType = sessionStorage.getItem(USER_TYPE_KEY);
-            const isAdmin = sessionStorage.getItem('isAdminLoggedIn') === 'true';
-
-            employeeIdView.classList.add('hidden');
-            selectionView.classList.add('hidden');
-            voterView.classList.add('hidden');
-            adminView.classList.add('hidden');
-
-            if (hash === '#admin') {
-                if (isAdmin) {
-                    adminView.classList.remove('hidden');
-                    renderAdminDashboard();
-                    adminInterval = setInterval(renderAdminDashboard, ADMIN_REFRESH_INTERVAL);
-                } else {
-                    openModal('admin-login-modal');
-                    // Fallback view if admin login is cancelled
-                    if (voterId && userType) {
-                        voterView.classList.remove('hidden');
-                    } else if (voterId) {
-                        selectionView.classList.remove('hidden');
-                    } else {
-                        employeeIdView.classList.remove('hidden');
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write('<html><head><title>รายงานสรุป</title>');
+            printWindow.document.write(`
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+                    @page { size: landscape; margin: 10mm; }
+                    body { font-family: 'Sarabun', sans-serif; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th, td { border: 1px solid #ccc; padding: 5px; text-align: left; font-size: 9px; vertical-align: middle; }
+                    th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+                    h1 { text-align: center; margin: 5px 0; font-size: 14px; }
+                    h2 { text-align: center; margin: 5px 0; font-size: 12px; font-weight: normal; }
+                    .print-header { margin-bottom: 10px; }
+                    .print-header p { margin: 2px 0; font-size: 11px; }
+                    img { max-width: 70px; max-height: 70px; object-fit: cover; border-radius: 4px; display: block; margin: 0 auto; }
+                    @media print { body { -webkit-print-color-adjust: exact; } }
+                    /* Add centering for specific columns */
+                    td:nth-child(1), 
+                    td:nth-child(2), 
+                    td:nth-child(4), 
+                    td:nth-child(5), 
+                    td:nth-child(6), 
+                    td:nth-child(7), 
+                    td:nth-child(8), 
+                    td:nth-child(9) {
+                        text-align: center;
                     }
-                }
-            } else { // Voter Path
-                if (voterId && userType) {
-                    voterView.classList.remove('hidden');
-                    renderCandidates();
-                    updateTotalVotes();
-                } else if (voterId) {
-                    selectionView.classList.remove('hidden');
-                } else {
-                    employeeIdView.classList.remove('hidden');
-                }
-            }
+                </style>
+            `);
+            printWindow.document.write('</head><body>');
+            
+            // --- Header ---
+            const statusText = statusFilter.value || 'ทุกสถานะ';
+            const monthText = monthFilter.value !== "" ? monthFilter.options[monthFilter.selectedIndex].text : 'ทุกเดือน';
+            printWindow.document.write(`
+                <div class="print-header">
+                    <h1>รายงานสรุปการแจ้งปัญหา</h1>
+                    <h2>สาขา ${currentBranchName}</h2>
+                    <p><b>ตัวกรอง:</b> เดือน: ${monthText}, สถานะ: ${statusText}</p>
+                    <p><b>วันที่ปริ้น:</b> ${new Date().toLocaleString('th-TH')}</p>
+                    <p><b>จำนวนทั้งหมด (ตามตัวกรอง):</b> ${filteredRequests.length} รายการ</p>
+                </div>
+            `);
+
+            // --- Table ---
+            printWindow.document.write('<table>');
+            printWindow.document.write('<thead>' + document.querySelector('#requests-table thead').innerHTML + '</thead>');
+            printWindow.document.write('<tbody>' + document.querySelector('#requests-table tbody').innerHTML + '</tbody>');
+            printWindow.document.write('</table>');
+            
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+            }, 500);
         }
         
-        function navigateToHash(event) {
-            event.preventDefault();
-            window.location.hash = window.location.hash === '#admin' ? '' : '#admin';
+        // =================================================================================
+        // EVENT LISTENERS & INITIALIZATION
+        // =================================================================================
+        function populateFilters() {
+            statusFilter.innerHTML = '<option value="">ทุกสถานะ</option>';
+            for (const status in statusStyles) {
+                statusFilter.innerHTML += `<option value="${status}">${status}</option>`;
+            }
+            const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            monthFilter.innerHTML = '<option value="">ทุกเดือน</option>';
+            months.forEach((month, index) => {
+                monthFilter.innerHTML += `<option value="${index}">${month}</option>`;
+            });
         }
 
-        window.addEventListener('hashchange', switchView);
-        document.addEventListener('DOMContentLoaded', () => {
-            submitEmployeeIdBtn.addEventListener('click', handleEmployeeIdSubmit);
-            employeeIdInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleEmployeeIdSubmit(); });
-            document.getElementById('select-employee-btn').addEventListener('click', handleUserTypeSelection);
-            document.getElementById('select-pc-btn').addEventListener('click', handleUserTypeSelection);
-            confirmVoteBtn.addEventListener('click', submitVote);
-            adminPasswordField.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleAdminLogin(); });
-            
-            // Clear session storage on page load to ensure a fresh start
-            sessionStorage.clear();
-            switchView();
+        branchSelect.addEventListener('change', () => {
+            const selectedSheetId = branchSelect.value;
+            const selectedBranchName = branchSelect.options[branchSelect.selectedIndex].text;
+            fetchAndDisplayData(selectedSheetId, selectedBranchName);
         });
+
+        refreshBtn.addEventListener('click', () => {
+             const selectedSheetId = branchSelect.value;
+            if (selectedSheetId) {
+                const selectedBranchName = branchSelect.options[branchSelect.selectedIndex].text;
+                fetchAndDisplayData(selectedSheetId, selectedBranchName);
+            } else {
+                alert('กรุณาเลือกสาขาก่อน');
+            }
+        });
+
+        printBtn.addEventListener('click', handlePrint);
+        statusFilter.addEventListener('change', applyFiltersAndRender);
+        monthFilter.addEventListener('change', applyFiltersAndRender);
+
+        requestsTableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('table-image')) {
+                imageZoomModal.classList.remove('hidden');
+                zoomedImage.src = e.target.src;
+            }
+        });
+
+        imageZoomModal.addEventListener('click', () => {
+            imageZoomModal.classList.add('hidden');
+            zoomedImage.src = '';
+        });
+
+        // --- Initial Load ---
+        (async () => {
+            populateFilters();
+            await loadBranches();
+            lucide.createIcons();
+        })();
+
     </script>
 </body>
 </html>
