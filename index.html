@@ -70,7 +70,7 @@
         <!-- Header -->
         <header class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md mb-6">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-3">
+                <div id="home-btn" class="flex items-center gap-3 cursor-pointer" title="กลับไปหน้าแดชบอร์ดหลัก">
                     <i data-lucide="layout-dashboard" class="w-8 h-8 text-blue-600 dark:text-blue-400"></i>
                     <h1 class="text-2xl font-bold text-gray-800 dark:text-white">แดชบอร์ดสรุปภาพรวม</h1>
                 </div>
@@ -87,6 +87,10 @@
                     <button id="refresh-btn" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="รีเฟรชข้อมูล">
                         <i data-lucide="refresh-cw" class="w-5 h-5"></i>
                     </button>
+                    <button id="summary-btn" class="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                        <span class="hidden sm:inline">สรุปข้อมูล</span>
+                    </button>
                     <button id="print-btn" class="p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-2" disabled>
                         <i data-lucide="printer" class="w-5 h-5"></i>
                         <span class="hidden sm:inline">ปริ้น</span>
@@ -95,7 +99,7 @@
             </div>
         </header>
 
-        <!-- Main Content -->
+        <!-- Main Content (Dashboard) -->
         <main id="main-content" class="hidden">
             <!-- Summary Cards -->
             <div id="summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -118,6 +122,23 @@
             </div>
         </main>
         
+        <!-- Summary Content -->
+        <main id="summary-content" class="hidden">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
+                 <h2 id="summary-table-title" class="text-xl font-bold mb-4">ตารางสรุปข้อมูล</h2>
+                 <div class="overflow-x-auto">
+                    <table id="summary-table" class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <!-- Summary table header will be injected here -->
+                        </thead>
+                        <tbody>
+                            <!-- Summary table body will be injected here -->
+                        </tbody>
+                    </table>
+                 </div>
+            </div>
+        </main>
+
         <!-- Placeholder for when no branch is selected -->
         <div id="placeholder" class="flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 mt-16">
             <i data-lucide="info" class="w-16 h-16 mb-4"></i>
@@ -131,7 +152,7 @@
         // CONFIGURATION
         // =================================================================================
         const GAS_API_URLS = [
-            "https://script.google.com/macros/s/AKfycbzKSaLBibuPramXohqbpvBENcxWi97sQMxS4em4c_xCN0ctk78NHzQOTAEK6GPXgdJv/exec",
+            "https://script.google.com/macros/s/AKfycbxCGuxpJKLKtDYgV0aHybUUp_ECvmj5QlDP33nNY-VYFEW945xTKrEtAuLyOy8Oj3XHVA/exec",
         ];
 
         // =================================================================================
@@ -150,13 +171,17 @@
         const statusFilter = document.getElementById('status-filter');
         const printBtn = document.getElementById('print-btn');
         const refreshBtn = document.getElementById('refresh-btn');
+        const summaryBtn = document.getElementById('summary-btn');
         const mainContent = document.getElementById('main-content');
+        const summaryContent = document.getElementById('summary-content');
         const placeholder = document.getElementById('placeholder');
         const summaryCardsContainer = document.getElementById('summary-cards');
         const requestsTableBody = document.querySelector('#requests-table tbody');
         const tableTitle = document.getElementById('table-title');
         const imageZoomModal = document.getElementById('image-zoom-modal');
         const zoomedImage = document.getElementById('zoomed-image');
+        const homeBtn = document.getElementById('home-btn');
+
 
         // =================================================================================
         // UTILITY FUNCTIONS
@@ -187,14 +212,13 @@
                 if (result.status === 'error') throw new Error(result.message || 'API Error');
                 return result.data;
             } catch (error) {
-                console.error(`API Call Error with ${apiUrl}:`, error.message);
-                alert(`เกิดข้อผิดพลาดในการเชื่อมต่อ: ${error.message}`);
-                throw error;
+                console.error(`API Call Error with ${apiUrl}:`, error);
+                throw error; // Re-throw the error to be handled by the calling function
             }
         }
 
         // =================================================================================
-        // DATA FETCHING AND RENDERING
+        // DATA FETCHING AND RENDERING (DASHBOARD)
         // =================================================================================
         async function loadBranches() {
             showLoading(true);
@@ -222,6 +246,7 @@
         async function fetchAndDisplayData(sheetId, branchName) {
             if (!sheetId) {
                 mainContent.classList.add('hidden');
+                summaryContent.classList.add('hidden');
                 placeholder.classList.remove('hidden');
                 printBtn.disabled = true;
                 monthFilter.disabled = true;
@@ -230,6 +255,7 @@
             }
             showLoading(true);
             mainContent.classList.add('hidden');
+            summaryContent.classList.add('hidden');
             placeholder.classList.add('hidden');
             
             try {
@@ -339,6 +365,67 @@
         }
 
         // =================================================================================
+        // DATA FETCHING AND RENDERING (SUMMARY)
+        // =================================================================================
+        async function fetchAndDisplaySummaryData() {
+            showLoading(true);
+            mainContent.classList.add('hidden');
+            placeholder.classList.add('hidden');
+            summaryContent.classList.add('hidden'); // Hide it first
+
+            try {
+                // Call API with the specific summary sheet ID
+                const summaryData = await callGasApi({ 
+                    action: 'getSummaryData',
+                    sheetId: '1z6HCuZXZ4raJmY4CAlLcM-ADFOC-nk29nfEsuDCfk4o' 
+                });
+                renderSummaryTable(summaryData.headers, summaryData.data);
+                summaryContent.classList.remove('hidden');
+            } catch (error) {
+                console.error("Failed to load summary data:", error);
+                placeholder.classList.remove('hidden');
+                placeholder.innerHTML = `
+                    <i data-lucide="server-crash" class="w-16 h-16 mb-4 text-red-500"></i>
+                    <h2 class="text-2xl font-semibold">เกิดข้อผิดพลาด</h2>
+                    <p>ไม่สามารถโหลดข้อมูลสรุปได้</p>
+                    <p class="mt-2 text-sm bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 p-2 rounded-md w-full max-w-md"><b>ข้อความจากระบบ:</b> ${error.message}</p>
+                `;
+                lucide.createIcons();
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderSummaryTable(headers, data) {
+            const tableHead = document.querySelector('#summary-table thead');
+            const tableBody = document.querySelector('#summary-table tbody');
+
+            // Render header
+            tableHead.innerHTML = `<tr>${headers.map(h => `<th scope="col" class="px-4 py-3">${h}</th>`).join('')}</tr>`;
+
+            // Render body
+            tableBody.innerHTML = '';
+            if (!data || data.length === 0) {
+                tableBody.innerHTML = `
+                    <tr class="bg-white dark:bg-gray-800">
+                        <td colspan="${headers.length}" class="px-6 py-4 text-center">ไม่พบข้อมูลสรุป</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            data.forEach(row => {
+                const rowHtml = `
+                    <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        ${row.map(cell => `<td class="px-4 py-2">${cell}</td>`).join('')}
+                    </tr>
+                `;
+                tableBody.innerHTML += rowHtml;
+            });
+        }
+
+
+        // =================================================================================
         // PRINTING LOGIC
         // =================================================================================
         function handlePrint() {
@@ -436,6 +523,22 @@
             } else {
                 alert('กรุณาเลือกสาขาก่อน');
             }
+        });
+        
+        homeBtn.addEventListener('click', () => {
+            if (branchSelect.value) {
+                mainContent.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                mainContent.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+            summaryContent.classList.add('hidden');
+        });
+
+        summaryBtn.addEventListener('click', () => {
+            // Now calls the function without any parameters
+            fetchAndDisplaySummaryData();
         });
 
         printBtn.addEventListener('click', handlePrint);
